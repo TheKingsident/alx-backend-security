@@ -15,4 +15,16 @@ class RequestLog(models.Model):
     def __str__(self):
         """String representation of the RequestLog instance."""
         return f"{self.ip_address} - {self.path} at {self.timestamp}"
+
+class BlockedIP(models.Model):
+    """Model to store blocked IP addresses."""
+    ip_address = models.GenericIPAddressField(unique=True)
+
+    class Meta:
+        """Meta options for the BlockedIP model."""
+        verbose_name = "Blocked IP"
+        verbose_name_plural = "Blocked IPs"
     
+    def __str__(self):
+        """String representation of the BlockedIP instance."""
+        return f"{self.ip_address}"

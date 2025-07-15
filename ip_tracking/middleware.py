@@ -1,5 +1,7 @@
 import logging
 from django.utils import timezone
+from django.http import HttpResponseForbidden
+from .models import BlockedIP
 
 
 def get_client_ip(request):
@@ -29,5 +31,22 @@ class IPTrackingMiddleware:
         timestamp = timezone.now()
         self.logger.info(f"IP: {ip_address}, Path: {path}, Timestamp: {timestamp}")
         # Process the request
+        response = self.get_response(request)
+        return response
+
+class BlockedIPMiddleware:
+    """Middleware to block requests from specific IP addresses."""
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def get_client_ip(self, request):
+        """Extract the client's IP address from the request."""
+        return get_client_ip(request)
+
+    def __call__(self, request):
+        """Check if the request's IP is blocked."""
+        ip_address = self.get_client_ip(request)
+        if BlockedIP.objects.filter(ip_address=ip_address).exists():
+            return HttpResponseForbidden("Access denied")
         response = self.get_response(request)
         return response
