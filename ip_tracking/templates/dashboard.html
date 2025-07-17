@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; }
+        .header { border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
+        .user-info { background: #f5f5f5; padding: 15px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Dashboard</h1>
+        <p>Welcome to the secure dashboard!</p>
+    </div>
+    
+    <div class="user-info">
+        <h3>User Information</h3>
+        <p><strong>Username:</strong> {{ user.username }}</p>
+        <p><strong>Email:</strong> {{ user.email|default:"Not provided" }}</p>
+        <p><strong>Login Time:</strong> {{ user.last_login|default:"First login" }}</p>
+    </div>
+    
+    <p><a href="{% url 'admin:logout' %}">Logout</a></p>
+</body>
+</html>

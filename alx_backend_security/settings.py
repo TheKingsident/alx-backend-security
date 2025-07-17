@@ -48,7 +48,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'ip_tracking.middleware.IPTrackingMiddleware',
+    'ip_tracking.middleware.BlockedIPMiddleware',  # Block IPs first
+    'ip_tracking.middleware.RateLimitMiddleware',  # Then apply rate limiting
+    'ip_tracking.middleware.IPTrackingMiddleware',  # Finally log requests
 ]
 
 ROOT_URLCONF = 'alx_backend_security.urls'
@@ -123,6 +125,30 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Cache configuration for rate limiting
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+        'TIMEOUT': 300,  # 5 minutes default timeout
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
+    }
+}
+
+# Rate limiting configuration
+RATELIMIT_ENABLE = True
+RATELIMIT_USE_CACHE = 'default'
+
+# Rate limiting settings for different scenarios
+RATE_LIMIT_SETTINGS = {
+    'LOGIN_AUTHENTICATED': '10/m',  # 10 requests per minute for authenticated users
+    'LOGIN_ANONYMOUS': '5/m',       # 5 requests per minute for anonymous users
+    'LOGIN_IP_BASED': '3/m',        # 3 login attempts per minute per IP (stricter for login)
+}
 
 LOGGING = {
     'version': 1,

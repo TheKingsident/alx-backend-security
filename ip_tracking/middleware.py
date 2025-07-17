@@ -1,8 +1,11 @@
 import logging
 import requests
 from django.utils import timezone
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, HttpResponseTooManyRequests
 from django.core.cache import cache
+from django_ratelimit.decorators import ratelimit
+from django_ratelimit import ALL
+from django_ratelimit.exceptions import Ratelimited
 from .models import BlockedIP, RequestLog
 
 
@@ -114,3 +117,73 @@ class BlockedIPMiddleware:
             return HttpResponseForbidden("Access denied")
         response = self.get_response(request)
         return response
+
+
+class RateLimitMiddleware:
+    """Middleware to implement rate limiting based on user authentication status."""
+    
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def get_client_ip(self, request):
+        """Extract the client's IP address from the request."""
+        return get_client_ip(request)
+
+    def __call__(self, request):
+        """Apply rate limiting based on authentication status."""
+        
+        # Check if user is authenticated
+        is_authenticated = hasattr(request, 'user') and request.user.is_authenticated
+        
+        try:
+            if is_authenticated:
+                # 10 requests per minute for authenticated users
+                self._check_rate_limit_authenticated(request)
+            else:
+                # 5 requests per minute for anonymous users
+                self._check_rate_limit_anonymous(request)
+                
+        except Ratelimited:
+            # Return 429 Too Many Requests
+            return HttpResponseTooManyRequests(
+                "Rate limit exceeded. Please try again later."
+            )
+        
+        response = self.get_response(request)
+        return response
+    
+    def _check_rate_limit_authenticated(self, request):
+        """Check rate limit for authenticated users (10/minute)."""
+        from django_ratelimit.core import is_ratelimited
+        
+        # Use user ID as the key for authenticated users
+        key = f"user_{request.user.id}"
+        
+        if is_ratelimited(
+            request=request,
+            group=key,
+            fn=None,
+            key='user',
+            rate='10/m',
+            method=ALL,
+            increment=True
+        ):
+            raise Ratelimited()
+    
+    def _check_rate_limit_anonymous(self, request):
+        """Check rate limit for anonymous users (5/minute)."""
+        from django_ratelimit.core import is_ratelimited
+        
+        # Use IP address as the key for anonymous users
+        ip_address = self.get_client_ip(request)
+        
+        if is_ratelimited(
+            request=request,
+            group=f"anon_{ip_address}",
+            fn=None,
+            key='ip',
+            rate='5/m',
+            method=ALL,
+            increment=True
+        ):
+            raise Ratelimited()
