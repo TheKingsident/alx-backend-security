@@ -172,3 +172,29 @@ LOGGING = {
         },
     },
 }
+
+# Celery Configuration
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+# Celery Beat Schedule (for periodic tasks)
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'monitor-suspicious-activity': {
+        'task': 'ip_tracking.tasks.monitor_suspicious_activity',
+        'schedule': crontab(minute=0),  # Run every hour at minute 0
+    },
+    'auto-block-suspicious-ips': {
+        'task': 'ip_tracking.tasks.auto_block_highly_suspicious_ips',
+        'schedule': crontab(minute=0, hour='*/6'),  # Run every 6 hours
+    },
+    'cleanup-old-records': {
+        'task': 'ip_tracking.tasks.cleanup_old_suspicious_records',
+        'schedule': crontab(minute=0, hour=2),  # Run daily at 2 AM
+    },
+}

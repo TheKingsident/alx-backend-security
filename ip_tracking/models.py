@@ -30,3 +30,19 @@ class BlockedIP(models.Model):
     def __str__(self):
         """String representation of the BlockedIP instance."""
         return f"{self.ip_address}"
+
+
+class SuspiciousIP(models.Model):
+    """Model to store suspicious IP addresses and their reasons."""
+    ip_address = models.GenericIPAddressField()
+    reason = models.TextField()
+
+    class Meta:
+        """Meta options for the SuspiciousIP model."""
+        verbose_name = "Suspicious IP"
+        verbose_name_plural = "Suspicious IPs"
+
+    
+    def __str__(self):
+        """String representation of the SuspiciousIP instance."""
+        return f"{self.ip_address} - {self.reason[:50]}{'...' if len(self.reason) > 50 else ''}"

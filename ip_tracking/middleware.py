@@ -1,7 +1,7 @@
 import logging
 import requests
 from django.utils import timezone
-from django.http import HttpResponseForbidden, HttpResponseTooManyRequests
+from django.http import HttpResponseForbidden, HttpResponse
 from django.core.cache import cache
 from django_ratelimit.decorators import ratelimit
 from django_ratelimit import ALL
@@ -145,8 +145,10 @@ class RateLimitMiddleware:
                 
         except Ratelimited:
             # Return 429 Too Many Requests
-            return HttpResponseTooManyRequests(
-                "Rate limit exceeded. Please try again later."
+            return HttpResponse(
+                "Rate limit exceeded. Please try again later.",
+                status=429,
+                content_type="text/plain"
             )
         
         response = self.get_response(request)
