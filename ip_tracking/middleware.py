@@ -1,7 +1,9 @@
 import logging
+import requests
 from django.utils import timezone
 from django.http import HttpResponseForbidden
-from .models import BlockedIP
+from django.core.cache import cache
+from .models import BlockedIP, RequestLog
 
 
 def get_client_ip(request):
@@ -13,6 +15,49 @@ def get_client_ip(request):
     else:
         ip = request.META.get('REMOTE_ADDR')
     return ip
+
+
+def get_geolocation(ip_address):
+    """Get geolocation data for an IP address with 24-hour caching."""
+    # Create cache key
+    cache_key = f"geolocation_{ip_address}"
+    
+    # Try to get from cache first
+    cached_location = cache.get(cache_key)
+    if cached_location:
+        return cached_location
+    
+    # Skip geolocation for private/local IPs
+    if ip_address in ['127.0.0.1', 'localhost'] or ip_address.startswith('192.168.') or ip_address.startswith('10.'):
+        location_data = {'country': 'Local', 'city': 'Local'}
+        cache.set(cache_key, location_data, 60 * 60 * 24)
+        return location_data
+    
+    try:
+        response = requests.get(f'http://ip-api.com/json/{ip_address}', timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'success':
+                location_data = {
+                    'country': data.get('country', 'Unknown'),
+                    'city': data.get('city', 'Unknown')
+                }
+            else:
+                location_data = {'country': 'Unknown', 'city': 'Unknown'}
+        else:
+            location_data = {'country': 'Unknown', 'city': 'Unknown'}
+        
+        # Cache the result for 24 hours (86400 seconds)
+        cache.set(cache_key, location_data, 60 * 60 * 24)
+        return location_data
+        
+    except requests.RequestException:
+        # Fallback if API request fails
+        location_data = {'country': 'Unknown', 'city': 'Unknown'}
+        # Cache failed lookups for shorter time (1 hour)
+        cache.set(cache_key, location_data, 60 * 60)
+        return location_data
 
 class IPTrackingMiddleware:
     """Middleware to track IP addresses and paths."""
@@ -29,8 +74,27 @@ class IPTrackingMiddleware:
         ip_address = self.get_client_ip(request)
         path = request.get_full_path()
         timestamp = timezone.now()
-        self.logger.info(f"IP: {ip_address}, Path: {path}, Timestamp: {timestamp}")
-        # Process the request
+        
+        # Get geolocation data
+        location_data = get_geolocation(ip_address)
+        
+        # Log to console/file
+        self.logger.info(
+            f"IP: {ip_address}, Path: {path}, Timestamp: {timestamp}, "
+            f"Country: {location_data['country']}, City: {location_data['city']}"
+        )
+        
+        # Save to database
+        try:
+            RequestLog.objects.create(
+                ip_address=ip_address,
+                path=path,
+                country=location_data['country'],
+                city=location_data['city']
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to save request log: {e}")
+
         response = self.get_response(request)
         return response
 
